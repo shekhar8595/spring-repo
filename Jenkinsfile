@@ -7,6 +7,7 @@ pipeline {
         CLUSTER_NAME = "spring-cluster"
         ZONE         = "us-central1-a"
         NAMESPACE    = "default"
+        K8S_MANIFEST = "k8s/k8s-deployment.yaml" // <-- update path if your YAML is in a subfolder
     }
 
     stages {
@@ -40,13 +41,8 @@ pipeline {
                 withCredentials([file(credentialsId: 'gcp-sa', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh """
                         set -e
-                        echo "Activating GCP service account..."
                         gcloud auth activate-service-account --key-file=\$GOOGLE_APPLICATION_CREDENTIALS --quiet
-                        
-                        echo "Configuring Docker for GCR..."
                         gcloud auth configure-docker --quiet
-
-                        echo "Pushing Docker image..."
                         docker push gcr.io/${PROJECT_ID}/${IMAGE_NAME}:${BUILD_NUMBER}
                     """
                 }
@@ -81,17 +77,17 @@ pipeline {
                 withCredentials([file(credentialsId: 'gcp-sa', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh """
                         set -e
-                        echo "Activating GCP service account..."
                         gcloud auth activate-service-account --key-file=\$GOOGLE_APPLICATION_CREDENTIALS --quiet
-                        
-                        echo "Fetching cluster credentials..."
-                        gcloud container clusters get-credentials ${CLUSTER_NAME} \
-                            --zone ${ZONE} \
-                            --project ${PROJECT_ID} \
-                            --quiet
+                        gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${ZONE} --project ${PROJECT_ID} --quiet
+
+                        # Check if manifest exists
+                        if [ ! -f ${K8S_MANIFEST} ]; then
+                            echo "ERROR: Kubernetes manifest not found at ${K8S_MANIFEST}"
+                            exit 1
+                        fi
 
                         echo "Applying Kubernetes manifests..."
-                        kubectl apply -f k8s-deployment.yaml --namespace ${NAMESPACE}
+                        kubectl apply -f ${K8S_MANIFEST} --namespace ${NAMESPACE}
 
                         echo "Updating deployment image..."
                         kubectl set image deployment/springboot-deployment \
