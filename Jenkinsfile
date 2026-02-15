@@ -13,7 +13,7 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                // Checkout code from GitHub
+                echo "Checking out code from GitHub..."
                 checkout scm
             }
         }
@@ -21,7 +21,6 @@ pipeline {
         stage('Build JAR') {
             steps {
                 echo "Building JAR using system Maven..."
-                // Use system Maven installed on Jenkins server
                 sh 'mvn clean package -DskipTests'
             }
         }
@@ -40,7 +39,9 @@ pipeline {
                 echo "Pushing Docker image to GCR..."
                 withCredentials([file(credentialsId: 'gcp-sa', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh """
+                        echo "Activating GCP service account..."
                         gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+                        echo "Configuring Docker to use GCR..."
                         gcloud auth configure-docker
                         docker push gcr.io/${PROJECT_ID}/${IMAGE_NAME}:${BUILD_NUMBER}
                     """
@@ -53,13 +54,15 @@ pipeline {
                 echo "Deploying to GKE..."
                 withCredentials([file(credentialsId: 'gcp-sa', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh """
+                        echo "Activating GCP service account for deployment..."
                         gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+                        echo "Fetching cluster credentials..."
                         gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${ZONE} --project ${PROJECT_ID}
-                        
-                        # Apply Kubernetes deployment (create/update)
+
+                        echo "Applying Kubernetes deployment..."
                         kubectl apply -f k8s-deployment.yaml --namespace ${NAMESPACE}
 
-                        # Update deployment image to the new build
+                        echo "Updating deployment image..."
                         kubectl set image deployment/springboot-deployment \
                             springboot-container=gcr.io/${PROJECT_ID}/${IMAGE_NAME}:${BUILD_NUMBER} \
                             --namespace ${NAMESPACE}
