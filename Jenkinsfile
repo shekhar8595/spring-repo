@@ -7,7 +7,7 @@ pipeline {
         CLUSTER_NAME = "spring-cluster"
         ZONE         = "us-central1-a"
         NAMESPACE    = "default"
-        K8S_MANIFEST = "k8s/k8s-deployment.yaml" // <-- update path if your YAML is in a subfolder
+        K8S_MANIFEST = "k8s/" // Apply all YAMLs inside k8s folder
     }
 
     stages {
@@ -80,13 +80,13 @@ pipeline {
                         gcloud auth activate-service-account --key-file=\$GOOGLE_APPLICATION_CREDENTIALS --quiet
                         gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${ZONE} --project ${PROJECT_ID} --quiet
 
-                        # Check if manifest exists
-                        if [ ! -f ${K8S_MANIFEST} ]; then
-                            echo "ERROR: Kubernetes manifest not found at ${K8S_MANIFEST}"
+                        # Check if manifest directory exists and has yaml files
+                        if [ ! -d ${K8S_MANIFEST} ] || [ -z "\$(ls -A ${K8S_MANIFEST}/*.yaml 2>/dev/null)" ]; then
+                            echo "ERROR: Kubernetes manifests not found in directory ${K8S_MANIFEST}"
                             exit 1
                         fi
 
-                        echo "Applying Kubernetes manifests..."
+                        echo "Applying Kubernetes manifests from ${K8S_MANIFEST}..."
                         kubectl apply -f ${K8S_MANIFEST} --namespace ${NAMESPACE}
 
                         echo "Updating deployment image..."
