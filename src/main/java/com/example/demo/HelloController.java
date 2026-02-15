@@ -8,7 +8,7 @@ public class HelloController {
 
     @GetMapping("/")
     public String home() {
-        return "Spring Boot CI/CD with GKE is Running version2!";
+        return "Spring Boot CI/CD with GKE is Running..working now, thanks!";
     }
 
     @GetMapping("/health")
