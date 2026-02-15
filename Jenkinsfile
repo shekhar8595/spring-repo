@@ -35,7 +35,7 @@ pipeline {
 
         stage('Push Docker Image') {
             steps {
-                withCredentials([file(credentialsId: 'gcp-key-json', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                withCredentials([file(credentialsId: 'gcp-sa', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh """
                     gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
                     gcloud auth configure-docker
