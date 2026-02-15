@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        PROJECT_ID = "YOUR_PROJECT_ID"
+        PROJECT_ID = "spheric-subject-482019-e5"
         IMAGE_NAME = "springboot-cicd-demo"
         CLUSTER_NAME = "spring-cluster"
         ZONE = "us-central1-a"
