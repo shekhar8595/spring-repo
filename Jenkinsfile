@@ -20,7 +20,7 @@ pipeline {
 
         stage('Build JAR') {
             steps {
-                echo "Building JAR using system Maven..."
+                echo "Building JAR using Maven..."
                 sh 'mvn clean package -DskipTests'
             }
         }
@@ -39,12 +39,37 @@ pipeline {
                 echo "Pushing Docker image to GCR..."
                 withCredentials([file(credentialsId: 'gcp-sa', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh """
+                        set -e
                         echo "Activating GCP service account..."
-                        gcloud auth activate-service-account --key-file=\$GOOGLE_APPLICATION_CREDENTIALS
+                        gcloud auth activate-service-account --key-file=\$GOOGLE_APPLICATION_CREDENTIALS --quiet
+                        
                         echo "Configuring Docker for GCR..."
                         gcloud auth configure-docker --quiet
+
                         echo "Pushing Docker image..."
                         docker push gcr.io/${PROJECT_ID}/${IMAGE_NAME}:${BUILD_NUMBER}
+                    """
+                }
+            }
+        }
+
+        stage('Create GKE Cluster if Not Exists') {
+            steps {
+                echo "Ensuring GKE cluster exists..."
+                withCredentials([file(credentialsId: 'gcp-sa', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                    sh """
+                        set -e
+                        gcloud auth activate-service-account --key-file=\$GOOGLE_APPLICATION_CREDENTIALS --quiet
+                        if ! gcloud container clusters describe ${CLUSTER_NAME} --zone ${ZONE} --project ${PROJECT_ID} > /dev/null 2>&1; then
+                            echo "Cluster not found. Creating ${CLUSTER_NAME}..."
+                            gcloud container clusters create ${CLUSTER_NAME} \
+                                --zone ${ZONE} \
+                                --num-nodes=1 \
+                                --project ${PROJECT_ID} \
+                                --quiet
+                        else
+                            echo "Cluster ${CLUSTER_NAME} already exists."
+                        fi
                     """
                 }
             }
@@ -55,8 +80,9 @@ pipeline {
                 echo "Deploying to GKE..."
                 withCredentials([file(credentialsId: 'gcp-sa', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh """
+                        set -e
                         echo "Activating GCP service account..."
-                        gcloud auth activate-service-account --key-file=\$GOOGLE_APPLICATION_CREDENTIALS
+                        gcloud auth activate-service-account --key-file=\$GOOGLE_APPLICATION_CREDENTIALS --quiet
                         
                         echo "Fetching cluster credentials..."
                         gcloud container clusters get-credentials ${CLUSTER_NAME} \
@@ -64,7 +90,7 @@ pipeline {
                             --project ${PROJECT_ID} \
                             --quiet
 
-                        echo "Applying Kubernetes deployment..."
+                        echo "Applying Kubernetes manifests..."
                         kubectl apply -f k8s-deployment.yaml --namespace ${NAMESPACE}
 
                         echo "Updating deployment image..."
