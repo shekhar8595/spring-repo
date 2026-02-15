@@ -20,7 +20,8 @@ pipeline {
 
         stage('Build JAR') {
             steps {
-                sh './mvnw clean package -DskipTests'
+                // Use system Maven instead of Maven Wrapper
+                sh 'mvn clean package -DskipTests'
             }
         }
 
