@@ -40,9 +40,10 @@ pipeline {
                 withCredentials([file(credentialsId: 'gcp-sa', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh """
                         echo "Activating GCP service account..."
-                        gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
-                        echo "Configuring Docker to use GCR..."
-                        gcloud auth configure-docker
+                        gcloud auth activate-service-account --key-file=\$GOOGLE_APPLICATION_CREDENTIALS
+                        echo "Configuring Docker for GCR..."
+                        gcloud auth configure-docker --quiet
+                        echo "Pushing Docker image..."
                         docker push gcr.io/${PROJECT_ID}/${IMAGE_NAME}:${BUILD_NUMBER}
                     """
                 }
@@ -54,10 +55,14 @@ pipeline {
                 echo "Deploying to GKE..."
                 withCredentials([file(credentialsId: 'gcp-sa', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh """
-                        echo "Activating GCP service account for deployment..."
-                        gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+                        echo "Activating GCP service account..."
+                        gcloud auth activate-service-account --key-file=\$GOOGLE_APPLICATION_CREDENTIALS
+                        
                         echo "Fetching cluster credentials..."
-                        gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${ZONE} --project ${PROJECT_ID}
+                        gcloud container clusters get-credentials ${CLUSTER_NAME} \
+                            --zone ${ZONE} \
+                            --project ${PROJECT_ID} \
+                            --quiet
 
                         echo "Applying Kubernetes deployment..."
                         kubectl apply -f k8s-deployment.yaml --namespace ${NAMESPACE}
