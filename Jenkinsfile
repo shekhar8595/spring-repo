@@ -20,13 +20,15 @@ pipeline {
 
         stage('Build JAR') {
             steps {
-                // Use system Maven instead of Maven Wrapper
+                echo "Building JAR using system Maven..."
+                // Use system Maven installed on Jenkins server
                 sh 'mvn clean package -DskipTests'
             }
         }
 
         stage('Build Docker Image') {
             steps {
+                echo "Building Docker image..."
                 script {
                     docker.build("gcr.io/${PROJECT_ID}/${IMAGE_NAME}:${BUILD_NUMBER}")
                 }
@@ -35,11 +37,12 @@ pipeline {
 
         stage('Push Docker Image') {
             steps {
+                echo "Pushing Docker image to GCR..."
                 withCredentials([file(credentialsId: 'gcp-sa', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh """
-                    gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
-                    gcloud auth configure-docker
-                    docker push gcr.io/${PROJECT_ID}/${IMAGE_NAME}:${BUILD_NUMBER}
+                        gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+                        gcloud auth configure-docker
+                        docker push gcr.io/${PROJECT_ID}/${IMAGE_NAME}:${BUILD_NUMBER}
                     """
                 }
             }
@@ -47,30 +50,39 @@ pipeline {
 
         stage('Deploy to GKE') {
             steps {
+                echo "Deploying to GKE..."
                 withCredentials([file(credentialsId: 'gcp-sa', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh """
-                    gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
-                    gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${ZONE} --project ${PROJECT_ID}
-                    
-                    # Apply deployment (creates or updates)
-                    kubectl apply -f k8s-deployment.yaml --namespace ${NAMESPACE}
+                        gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+                        gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${ZONE} --project ${PROJECT_ID}
+                        
+                        # Apply Kubernetes deployment (create/update)
+                        kubectl apply -f k8s-deployment.yaml --namespace ${NAMESPACE}
 
-                    # Update image to the new build
-                    kubectl set image deployment/springboot-deployment \
-                        springboot-container=gcr.io/${PROJECT_ID}/${IMAGE_NAME}:${BUILD_NUMBER} \
-                        --namespace ${NAMESPACE}
+                        # Update deployment image to the new build
+                        kubectl set image deployment/springboot-deployment \
+                            springboot-container=gcr.io/${PROJECT_ID}/${IMAGE_NAME}:${BUILD_NUMBER} \
+                            --namespace ${NAMESPACE}
                     """
                 }
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                echo "Verifying deployment..."
+                sh "kubectl get pods --namespace ${NAMESPACE}"
+                sh "kubectl get svc --namespace ${NAMESPACE}"
             }
         }
     }
 
     post {
         success {
-            echo "Deployment successful: Build #${BUILD_NUMBER}"
+            echo "✅ Deployment successful: Build #${BUILD_NUMBER}"
         }
         failure {
-            echo "Deployment failed: Build #${BUILD_NUMBER}"
+            echo "❌ Deployment failed: Build #${BUILD_NUMBER}"
         }
     }
 }
